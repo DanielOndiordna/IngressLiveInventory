@@ -2,11 +2,11 @@
 // @author         EisFrei - fork by DanielOnDiordna
 // @name           IITC plugin: Live Inventory
 // @category       Info
-// @version        0.0.12.20210310.221400
+// @version        0.0.12.20210313.211400
 // @homepageURL    https://github.com/EisFrei/IngressLiveInventory
 // @updateURL      https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.meta.js
 // @downloadURL    https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.user.js
-// @description    [EisFrei-0.0.12.20210310.221400] Show current ingame inventory
+// @description    [EisFrei-0.0.12.20210313.211400] Show current ingame inventory. Requires CORE subscription (Fork by DanielOnDiordna https://github.com/DanielOndiordna/IngressLiveInventory)
 // @id             iitc-plugin-liveInventory@EisFrei
 // @namespace      https://softspot.nl/ingress/
 // @match          https://intel.ingress.com/*
@@ -22,14 +22,15 @@ function wrapper(plugin_info) {
     var self = window.plugin.LiveInventory;
     self.id = 'LiveInventory';
     self.title = 'Live Inventory';
-    self.version = '0.0.12.20210310.221400';
+    self.version = '0.0.12.20210313.211400';
     self.author = 'EisFrei - fork by DanielOnDiordna';
     self.changelog = `
 Changelog:
 
-version 0.0.12.20210310.221400
+version 0.0.12.20210313.211400
 - fork from github version 0.0.12
-- replaced tab indent with 4 spaces (to make the plugin work on IITC.me 0.26)
+- replaced tab indent with 4 spaces
+- fixed plugin script formatting to make it work on IITC.me 0.26
 - replace variable thisPlugin by self
 - split menu into 3 submenus
 - autosave and apply settings changes
