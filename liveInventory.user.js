@@ -2,11 +2,11 @@
 // @author         EisFrei - fork by DanielOnDiordna
 // @name           IITC plugin: Live Inventory
 // @category       Info
-// @version        0.0.12.20210313.211400
+// @version        0.0.12.20210415.160000
 // @homepageURL    https://github.com/EisFrei/IngressLiveInventory
 // @updateURL      https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.meta.js
 // @downloadURL    https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.user.js
-// @description    [EisFrei-0.0.12.20210313.211400] Show current ingame inventory. Requires CORE subscription (Fork by DanielOnDiordna https://github.com/DanielOndiordna/IngressLiveInventory)
+// @description    [EisFrei-0.0.12.20210415.160000] Show current ingame inventory. Requires CORE subscription (Fork by DanielOnDiordna https://github.com/DanielOndiordna/IngressLiveInventory)
 // @id             iitc-plugin-liveInventory@EisFrei
 // @namespace      https://softspot.nl/ingress/
 // @match          https://intel.ingress.com/*
@@ -22,7 +22,7 @@ function wrapper(plugin_info) {
     var self = window.plugin.LiveInventory;
     self.id = 'LiveInventory';
     self.title = 'Live Inventory';
-    self.version = '0.0.12.20210313.211400';
+    self.version = '0.0.12.20210415.160000';
     self.author = 'EisFrei - fork by DanielOnDiordna';
     self.changelog = `
 Changelog:
@@ -39,6 +39,9 @@ version 0.0.12.20210313.211400
 - added alerts and console messages when refreshing inventory with a nice time string
 - renew menu when refreshing inventory
 - added portals list plugin column with key count
+
+version 0.0.12.20210415.160000
+- IITC me compatibility fix for getMapZoomTileParameters
 `;
     self.namespace = 'window.plugin.' + self.id + '.';
     self.pluginname = 'plugin-' + self.id;
@@ -560,7 +563,7 @@ Formatting (one on each row): CAPSULEID:Display name<br />
     }
 
     function addKeyToLayer(data) {
-        const tileParams = window.getCurrentZoomTileParameters ? window.getCurrentZoomTileParameters() : window.getMapZoomTileParameters();
+        const tileParams = window.getCurrentZoomTileParameters ? window.getCurrentZoomTileParameters() : window.getMapZoomTileParameters(window.getDataZoomForMapZoom(window.map.getZoom()));
         if (tileParams.level !== 0) {
             return;
         }
@@ -596,7 +599,7 @@ Formatting (one on each row): CAPSULEID:Display name<br />
     };
 
     self.checkShowAllIcons = function() {
-        const tileParams = window.getCurrentZoomTileParameters ? window.getCurrentZoomTileParameters() : window.getMapZoomTileParameters();
+        const tileParams = window.getCurrentZoomTileParameters ? window.getCurrentZoomTileParameters() : window.getMapZoomTileParameters(window.getDataZoomForMapZoom(window.map.getZoom()));
         if (tileParams.level !== 0) {
             self.removeAllIcons();
         } else {
