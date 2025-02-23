@@ -2,11 +2,11 @@
 // @author         EisFrei - fork by DanielOnDiordna
 // @name           IITC plugin: Live Inventory
 // @category       Info
-// @version        0.0.16.20210617.001900
+// @version        0.0.17.20210724.002500
 // @homepageURL    https://github.com/EisFrei/IngressLiveInventory
 // @updateURL      https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.meta.js
 // @downloadURL    https://softspot.nl/ingress/plugins/iitc-plugin-liveInventory.user.js
-// @description    [EisFrei-0.0.16.20210617.001900] Show current ingame inventory. Requires CORE subscription (Fork by DanielOnDiordna https://github.com/DanielOndiordna/IngressLiveInventory)
+// @description    [EisFrei-0.0.17.20210724.002500] Show current in-game inventory. Requires CORE subscription. Fork by DanielOnDiordna https://github.com/DanielOndiordna/IngressLiveInventory extras: menu buttons, refresh feedback, portals list key count, capsule view, keys in capsule view on portals, zoom keys, draw bookmarks.
 // @id             iitc-plugin-liveInventory@EisFrei
 // @namespace      https://softspot.nl/ingress/
 // @match          https://intel.ingress.com/*
@@ -22,7 +22,7 @@ function wrapper(plugin_info) {
     var self = window.plugin.LiveInventory;
     self.id = 'LiveInventory';
     self.title = 'Live Inventory';
-    self.version = '0.0.16.20210617.001900';
+    self.version = '0.0.17.20210724.002500';
     self.author = 'EisFrei - fork by DanielOnDiordna';
     self.changelog = `
 Changelog:
@@ -75,6 +75,25 @@ version 0.0.16.20210617.001900
 - added clickable capsule names to show capsule contents
 - added capsule rename option
 - added changelog button and author information on settings menu
+
+version 0.0.17.20210706.224100
+version 0.0.17.20210706.225200
+version 0.0.17.20210706.230300
+version 0.0.17.20210706.231300
+version 0.0.17.20210707.094700
+version 0.0.17.20210707.122800
+- moved Copy Items and Copy Keys buttons to settings menu
+- moved Settings menu button from top to bottom of the dialog
+- added keys filter to see all, inventory or keys in capsules
+- added dialog title key totals
+- added zoom all for keys, also for capsules
+- added draw bookmarks button for all keys, keys in inventory or capsules (only if bookmarks plugin is enabled)
+- added colors for Quantum Capsule count: red if 100, orange if >= 95
+- added portal count for keys in capsules
+- applied auto sizing dialogs
+
+version 0.0.17.20210724.002500
+- prevent double plugin setup on hook iitcLoaded
 `;
     self.namespace = 'window.plugin.' + self.id + '.';
     self.pluginname = 'plugin-' + self.id;
@@ -104,6 +123,7 @@ version 0.0.16.20210617.001900
         capsuleNames: '',
         hideemptycapsules: false,
         selectedportalcapsulekeys: false,
+        filterkeys: 'All'
     };
 
     const translations = {
@@ -459,31 +479,61 @@ version 0.0.16.20210617.001900
             }
         };
         keys.sort(sortFunctions[orderBy]);
+        let countkeys = 0;
+        let countportals = 0;
         keys.map((el) => {
-            let row = tablebody.appendChild(document.createElement('tr'));
-            let countcell = row.appendChild(document.createElement('td'));
-            countcell.align = 'right';
-            countcell.textContent = (filtercapsuleid ? el.capsuleCounts[filtercapsuleid] : el.count);
+            let keysincapsules = Object.values(el.capsuleCounts).reduce((a, b) => a + b, 0);
+            if (filtercapsuleid ||
+                self.settings.filterkeys == 'All' ||
+                (self.settings.filterkeys == 'Inventory' && el.count > keysincapsules) ||
+                (self.settings.filterkeys == 'Capsules' && keysincapsules > 0)) {
+                let displaycount = el.count;
+                if (filtercapsuleid) {
+                    displaycount = el.capsuleCounts[filtercapsuleid];
+                } else {
+                    switch (self.settings.filterkeys) {
+                        case 'All':
+                            displaycount = el.count;
+                            break;
+                        case 'Inventory':
+                            displaycount = el.count - keysincapsules;
+                            break;
+                        case 'Capsules':
+                            displaycount = keysincapsules;
+                            break;
+                    }
+                }
+                countkeys += displaycount;
+                countportals++; // rows
 
-            let portalcell = row.appendChild(document.createElement('td'));
-            let portallink = portalcell.appendChild(document.createElement('a'));
-            portallink.textContent = el.portalCoupler.portalTitle;
-            portallink.href = "//intel.ingress.com/?pll=" + el._latlng.lat + "," + el._latlng.lng;
-            portallink.addEventListener('click', function(e) {
-                e.preventDefault();
-                window.zoomToAndShowPortal(el.portalCoupler.portalGuid,[el._latlng.lat,el._latlng.lng]);
-            },false);
+                let row = tablebody.appendChild(document.createElement('tr'));
+                let countcell = row.appendChild(document.createElement('td'));
+                countcell.align = 'right';
+                countcell.textContent = displaycount;
 
-            let distancecell = row.appendChild(document.createElement('td'));
-            distancecell.align = 'right';
-            distancecell.textContent = el._formattedDistance;
+                let portalcell = row.appendChild(document.createElement('td'));
+                portalcell.style.whiteSpace = 'nowrap';
+                let portallink = portalcell.appendChild(document.createElement('a'));
+                portallink.textContent = el.portalCoupler.portalTitle;
+                portallink.href = "//intel.ingress.com/?pll=" + el._latlng.lat + "," + el._latlng.lng;
+                portallink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.zoomToAndShowPortal(el.portalCoupler.portalGuid,[el._latlng.lat,el._latlng.lng]);
+                },false);
 
-            if (!filtercapsuleid) {
-                let capsulescell = row.appendChild(document.createElement('td'));
-                capsulescell.style.whiteSpace = 'nowrap';
-                setCapsuleLinks(el.capsules,el.capsuleCounts,capsulescell);
+                let distancecell = row.appendChild(document.createElement('td'));
+                distancecell.style.whiteSpace = 'nowrap';
+                distancecell.align = 'right';
+                distancecell.textContent = el._formattedDistance;
+
+                if (!filtercapsuleid) {
+                    let capsulescell = row.appendChild(document.createElement('td'));
+                    capsulescell.style.whiteSpace = 'nowrap';
+                    setCapsuleLinks(el.capsules,el.capsuleCounts,capsulescell);
+                }
             }
         });
+        return {countkeys:countkeys,countportals:countportals};
     }
 
     function setItemTableBody(items,tablebody,orderBy, direction,filtercapsuleid) {
@@ -590,13 +640,23 @@ version 0.0.16.20210617.001900
                 let countcell = row.appendChild(document.createElement('td'));
                 countcell.align = 'right';
                 countcell.textContent = (el.count || '');
-
+                countcell.style.paddingRight = '5px';
+                if (el.type == 'Quantum Capsule' && el.count >= 95) {
+                    if (el.count == 100) {
+                        countcell.style.backgroundColor = 'red';
+                    } else {
+                        countcell.style.backgroundColor = 'darkorange';
+                        countcell.style.color = 'black';
+                    }
+                }
                 let itemscountcell = row.appendChild(document.createElement('td'));
                 itemscountcell.align = 'right';
+                itemscountcell.style.paddingRight = '5px';
                 itemscountcell.textContent = (el.itemscount || '');
 
                 let keyscountcell = row.appendChild(document.createElement('td'));
                 keyscountcell.align = 'right';
+                keyscountcell.style.paddingRight = '5px';
                 keyscountcell.textContent = (el.keyscount || '');
 
                 let typecell = row.appendChild(document.createElement('td'));
@@ -674,22 +734,16 @@ version 0.0.16.20210617.001900
             e.preventDefault();
             self.menu('Capsules');
         },false);
-        let menusettingsbutton = buttonarea.appendChild(document.createElement('input'));
-        menusettingsbutton.type = 'button';
-        menusettingsbutton.value = 'Settings';
-        menusettingsbutton.addEventListener('click', function(e) {
-            e.preventDefault();
-            self.menu('Settings');
-        },false);
 
         let inventoryarea = container.appendChild(document.createElement('div'));
         inventoryarea.id = 'live-inventory';
 
+        let buttons = {};
+        let counts = undefined;
         if (submenu == 'Items') {
             let tablearea = inventoryarea.appendChild(document.createElement('div'));
 
             let sortabletable = tablearea.appendChild(document.createElement('table'));
-            sortabletable.style.maxHeight = ((isSmartphone() ? document.body.clientHeight : window.innerHeight - 100) - 105) + 'px';
 
             let tableheader = sortabletable.appendChild(document.createElement('thead'));
 
@@ -715,14 +769,13 @@ version 0.0.16.20210617.001900
             let tablearea = inventoryarea.appendChild(document.createElement('div'));
 
             let sortabletable = tablearea.appendChild(document.createElement('table'));
-            sortabletable.style.maxHeight = ((isSmartphone() ? document.body.clientHeight : window.innerHeight - 100) - 105) + 'px';
 
             let tableheader = sortabletable.appendChild(document.createElement('thead'));
 
             let headerrow = tableheader.appendChild(document.createElement('tr'));
 
             let tablebody = sortabletable.appendChild(document.createElement('tbody'));
-            setKeyTableBody(self.keyCount, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]]);
+            counts = setKeyTableBody(self.keyCount, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]]);
 
             ['Count','Portal','Distance','Capsules'].map(function(column) {
                 let header = headerrow.appendChild(document.createElement('th'));
@@ -737,6 +790,58 @@ version 0.0.16.20210617.001900
                     setKeyTableBody(self.keyCount, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]]);
                 },false);
             });
+
+            buttonarea.appendChild(document.createTextNode('Filter: '));
+            let filterselectarea = buttonarea.appendChild(document.createElement('select'));
+            ['All','Inventory','Capsules'].map(function(text) {
+                let filteroption = filterselectarea.appendChild(document.createElement('option'));
+                filteroption.value = text;
+                filteroption.textContent = text;
+                filteroption.selected = (self.settings.filterkeys == text);
+            });
+            filterselectarea.addEventListener('change', function(e) {
+                e.preventDefault();
+                self.settings.filterkeys = this.value;
+                self.saveSettings();
+                let counts = setKeyTableBody(self.keyCount, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]]);
+                $('#dialog-LiveInventory').dialog({title:self.title + ' - Keys (' + counts.countkeys + ' keys / ' + counts.countportals + ' portals)'});
+            },false);
+
+            buttons['Zoom all'] = function() {
+                let keys = [];
+                self.keyCount.map((el) => {
+                    let keysincapsules = Object.values(el.capsuleCounts).reduce((a, b) => a + b, 0);
+                    if (self.settings.filterkeys == 'All' ||
+                        (self.settings.filterkeys == 'Inventory' && el.count > keysincapsules) ||
+                        (self.settings.filterkeys == 'Capsules' && keysincapsules > 0)) {
+                        keys.push(el);
+                    }
+                });
+                if (keys.length > 0)
+                    self.zoomallkeys(keys);
+            };
+            if ('bookmarks' in window.plugin) {
+                buttons['Draw bookmarks'] = function() {
+                    let keys = [];
+                    self.keyCount.map((el) => {
+                        let keysincapsules = Object.values(el.capsuleCounts).reduce((a, b) => a + b, 0);
+                        if (self.settings.filterkeys == 'All' ||
+                            (self.settings.filterkeys == 'Inventory' && el.count > keysincapsules) ||
+                            (self.settings.filterkeys == 'Capsules' && keysincapsules > 0)) {
+                            keys.push(el);
+                        }
+                    });
+
+                    if (keys.length > 0) {
+                    let bookmarkfolder = self.settings.filterkeys + ' Keys';
+                        if (confirm('This will draw a bookmark for every key (' + keys.length + ') in folder:\n' + bookmarkfolder + '\n\nAre you sure you want to continue?')) {
+                            self.drawbookmarks(keys,bookmarkfolder);
+                        }
+                    } else {
+                        alert('There are no keys to draw bookmarks for');
+                    }
+                };
+            }
         } else if (submenu == 'Capsules') {
             let togglebutton = inventoryarea.appendChild(document.createElement('input'));
             togglebutton.type = 'button';
@@ -768,7 +873,6 @@ version 0.0.16.20210617.001900
             let tablearea = inventoryarea.appendChild(document.createElement('div'));
 
             let sortabletable = tablearea.appendChild(document.createElement('table'));
-            sortabletable.style.maxHeight = ((isSmartphone() ? document.body.clientHeight : window.innerHeight - 100) - 105 - 25) + 'px';
 
             let tableheader = sortabletable.appendChild(document.createElement('thead'));
 
@@ -781,11 +885,11 @@ version 0.0.16.20210617.001900
                 e.preventDefault();
                 if (editorarea.style.display == 'none') {
                     editorarea.style.display = 'block';
-                    sortabletable.style.maxHeight = ((isSmartphone() ? document.body.clientHeight : window.innerHeight - 100) - 105 - 25 - 245) + 'px';
                 } else {
                     editorarea.style.display = 'none';
-                    sortabletable.style.maxHeight = ((isSmartphone() ? document.body.clientHeight : window.innerHeight - 100) - 105 - 25) + 'px';
                 }
+                // fit table inside dialog
+                container.getElementsByTagName('table')[0].style.maxHeight = $('#dialog-' + self.id).height() - ($(sortabletable).offset().top - $(container).offset().top) + 'px';
             },false);
             savebutton.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -847,12 +951,29 @@ version 0.0.16.20210617.001900
             selectedportalcheckbox.disabled = (self.settings.displayMode == 'icon');
             selectedportalcheckboxarea.appendChild(document.createTextNode('Show detailed keys in capsules for selected portal'));
 
-            let changelogbutton = container.appendChild(document.createElement('a'));
-            changelogbutton.textContent = 'Changelog';
-            changelogbutton.addEventListener('click', function(e) {
+            let copyitemsbutton = container.appendChild(document.createElement('input'));
+            copyitemsbutton.type = 'button';
+            copyitemsbutton.value = 'Copy Items to clipboard';
+            copyitemsbutton.style.display = 'block';
+            copyitemsbutton.style.width = '240px';
+            copyitemsbutton.addEventListener('click', function(e) {
                 e.preventDefault();
-                alert(self.changelog);
+                exportItems();
             },false);
+
+            let copykeysbutton = container.appendChild(document.createElement('input'));
+            copykeysbutton.type = 'button';
+            copykeysbutton.value = 'Copy Keys to clipboard';
+            copykeysbutton.style.display = 'block';
+            copykeysbutton.style.width = '240px';
+            copykeysbutton.addEventListener('click', function(e) {
+                e.preventDefault();
+                exportKeys();
+            },false);
+
+            buttons['Changelog'] = function() {
+                alert(self.changelog);
+            };
 
             let author = container.appendChild(document.createElement('div'));
             author.className = self.id + 'author';
@@ -883,20 +1004,24 @@ version 0.0.16.20210617.001900
             },false);
         }
 
-        window.dialog({
+        let menudialog = window.dialog({
             html: container,
-            title: self.title + ' - ' + submenu,
+            title: self.title + ' - ' + submenu + (counts ? ' (' + counts.countkeys + ' keys / ' + counts.countportals + ' portals)' : ''),
             id: self.id,
             width: 'auto',
-            height: (isSmartphone() || submenu == 'Settings' ? 'auto' : window.innerHeight - 100)
-        }).dialog('option', 'buttons', {
+            height: 'auto' //(isSmartphone() || submenu == 'Settings' ? 'auto' : window.innerHeight - 100)
+        }).dialog('option', 'buttons', { ...buttons,
             'Refresh': refreshInventory,
-            'Copy Items': exportItems,
-            'Copy Keys': exportKeys,
-            'Close': function () {
+            'Settings': function() {
+                self.menu('Settings');
+            },
+            'Close': function() {
                 $(this).dialog('close');
             },
         });
+
+        // fit table inside dialog
+        container.getElementsByTagName('table')[0].style.maxHeight = menudialog.height() - ($(container.getElementsByTagName('table')[0]).offset().top - $(container).offset().top) + 'px';
     };
 
     function preparePortalKeyMap() {
@@ -1102,6 +1227,173 @@ version 0.0.16.20210617.001900
         localStorage[KEY_SETTINGS] = JSON.stringify(ls);
     };
 
+    self.drawbookmarks = function(keys,bookmarksfolder) {
+        function getBookmarkFolderID(bookmarksfolder) {
+            if (!bookmarksfolder) bookmarksfolder = "Others"; // default
+            let folderid = undefined;
+            for (const ID in window.plugin.bookmarks.bkmrksObj.portals) {
+                if (window.plugin.bookmarks.bkmrksObj.portals[ID].label == bookmarksfolder) {
+                    folderid = ID;
+                    break;
+                }
+            }
+            return folderid;
+        }
+
+        function createNewBookmarksFolder(bookmarksfolder) {
+            if (!bookmarksfolder) bookmarksfolder = "Others"; // default
+            let folderid = getBookmarkFolderID(bookmarksfolder);
+            if (!folderid) {
+                folderid = window.plugin.bookmarks.generateID();
+
+                window.plugin.bookmarks.bkmrksObj.portals[folderid] = {"label":bookmarksfolder,"state":1,"bkmrk":{}};
+                window.plugin.bookmarks.saveStorage();
+                window.plugin.bookmarks.refreshBkmrks();
+                window.runHooks('pluginBkmrksEdit', {"target": 'portals', "action": "add", "id": folderid});
+            }
+            return folderid;
+        };
+
+        function getFolderIDforBookmark(portalguid) {
+            let folderid = undefined;
+            for (const ID in window.plugin.bookmarks.bkmrksObj.portals) {
+                for (const bkmrkID in window.plugin.bookmarks.bkmrksObj.portals[ID].bkmrk) {
+                    if (window.plugin.bookmarks.bkmrksObj.portals[ID].bkmrk[bkmrkID].guid == portalguid) {
+                        folderid = ID;
+                        break;
+                    }
+                }
+            }
+            return folderid;
+        }
+
+        function getBookmarkID(portalguid) {
+            let bookmarkid = undefined;
+            for (const ID in window.plugin.bookmarks.bkmrksObj.portals) {
+                for (const bkmrkID in window.plugin.bookmarks.bkmrksObj.portals[ID].bkmrk) {
+                    if (window.plugin.bookmarks.bkmrksObj.portals[ID].bkmrk[bkmrkID].guid == portalguid) {
+                        bookmarkid = bkmrkID;
+                        break;
+                    }
+                }
+            }
+            return bookmarkid;
+        }
+
+        function createNewBookMarkInFolder(portalguid,latlng,label,bookmarksfolder) {
+            // check if bookmark already exists
+            let bookmarkid = getBookmarkID(portalguid);
+            let oldfolderid = getFolderIDforBookmark(portalguid);
+
+            // create new folder if needed
+            let folderid = createNewBookmarksFolder(bookmarksfolder);
+
+            if (!bookmarkid) { // create new bookmark if not already exists
+                if (!(portalguid in window.portals)) { // create placeholder for non existing portals to prevent errors from bookmarks.editStar
+                    window.mapDataRequest.render.createPlaceholderPortalEntity(portalguid,latlng.lat * 1E6,latlng.lng * 1E6,"N");
+                }
+
+                window.plugin.bookmarks.addPortalBookmark(portalguid,latlng.lat + ',' + latlng.lng,label);
+                bookmarkid = getBookmarkID(portalguid);
+                oldfolderid = getFolderIDforBookmark(portalguid); // bookmarks are added to idOthers by default, so it needs to be moved
+            }
+
+            let bookmarkmoved = 0;
+            if (folderid != oldfolderid) { // move bookmark to new folder if needed
+                let Bkmrk = window.plugin.bookmarks.bkmrksObj.portals[oldfolderid].bkmrk[bookmarkid];
+                delete window.plugin.bookmarks.bkmrksObj.portals[oldfolderid].bkmrk[bookmarkid];
+                window.plugin.bookmarks.bkmrksObj.portals[folderid].bkmrk[bookmarkid] = Bkmrk;
+                bookmarkmoved = 1;
+            }
+
+            return bookmarkmoved;
+        }
+
+        let bookmarksqueue = [];
+        let timerid = 0;
+        let bookmarksmoved = 0;
+        function clearbookmarksqueue() {
+            bookmarksqueue = [];
+            if (timerid) window.clearTimeout(timerid);
+            timerid = 0;
+            bookmarksmoved = 0;
+
+            $('#dialog-' + self.id + 'bookmarks').dialog('close');
+        }
+
+        function createnextbookmark(bookmarkscountobject) {
+            if (bookmarksqueue.length > 0) {
+                let newbookmarkdata = bookmarksqueue.shift();
+                bookmarksmoved += createNewBookMarkInFolder(newbookmarkdata.portalguid,newbookmarkdata.latlng,newbookmarkdata.label,newbookmarkdata.bookmarksfolder);
+                bookmarkscountobject.textContent = bookmarksqueue.length;
+                timerid = setTimeout(function() { createnextbookmark(bookmarkscountobject); },0);
+            } else {
+                if (bookmarksmoved > 0) {
+                    window.plugin.bookmarks.saveStorage();
+                    window.plugin.bookmarks.refreshBkmrks();
+                    window.runHooks('pluginBkmrksEdit', {"target": "bookmarks", "action": "sort"});
+                }
+                clearbookmarksqueue();
+            }
+        }
+
+        clearbookmarksqueue();
+
+        // if number of new bookmarks is large, it gets very slow... use a queue, a timer and a dialog:
+        for (let cnt in keys) {
+            let portalguid = keys[cnt].portalCoupler.portalGuid;
+            let latlng = keys[cnt]._latlng;
+            let label = keys[cnt].portalCoupler.portalTitle;
+            let bookmarkid = getBookmarkID(portalguid);
+            if (!bookmarkid) {
+                bookmarksqueue.push({
+                    portalguid:portalguid,
+                    latlng:latlng,
+                    label:label,
+                    bookmarksfolder:bookmarksfolder
+                });
+            } else {
+                bookmarksmoved += createNewBookMarkInFolder(portalguid,latlng,label,bookmarksfolder);
+            }
+        }
+
+        let container = document.createElement('div');
+        container.appendChild(document.createTextNode('Remaining '));
+        let bookmarkscount = container.appendChild(document.createElement('span'));
+        bookmarkscount.textContent = bookmarksqueue.length;
+        container.appendChild(document.createTextNode('/' + bookmarksqueue.length + ' bookmarks. Please be patient...'));
+        container.appendChild(document.createElement('br'));
+        container.appendChild(document.createTextNode('Bookmark folder: ' + bookmarksfolder));
+
+        if (bookmarksqueue.length > 20) // only show a dialog when drawing bookmarks may take a long time
+            window.dialog({
+                html: container,
+                id: self.id + 'bookmarks',
+                title: self.title + ' - Bookmarks',
+                width: 'auto',
+                closeCallback: function() {
+                    clearbookmarksqueue();
+                }
+            }).dialog('option', 'buttons', {
+                'Cancel': function() { $(this).dialog('close'); },
+            });
+
+        createnextbookmark(bookmarkscount);
+    };
+
+    self.zoomallkeys = function(keys) {
+        let keyslayer = new L.FeatureGroup();
+        for (let cnt in keys) {
+            L.marker(keys[cnt]._latlng, {
+                icon: self.keyIcon,
+                interactive: false,
+                keyboard: false,
+                width: '35px'
+            }).addTo(keyslayer);
+        }
+        window.map.fitBounds(keyslayer.getBounds());
+    };
+
     function showCapsuleContent(capsuleid,submenu) {
         const capsuleNames = parseCapsuleNames(self.settings.capsuleNames);
         let capsulename = capsuleNames[capsuleid];
@@ -1150,11 +1442,13 @@ version 0.0.16.20210617.001900
             e.preventDefault();
             showCapsuleContent(capsuleid,'Keys');
         },false);
-        buttonarea.appendChild(document.createTextNode('Items: ' + capsule.itemscount + ' Keys: ' + capsule.keyscount + ' Total: ' + capsule.count));
+        buttonarea.appendChild(document.createTextNode('Items: ' + capsule.itemscount + ' Keys: ' + capsule.keyscount + '/' + capsule.keys.length + ' portals Total: ' + capsule.count));
 
         let inventoryarea = container.appendChild(document.createElement('div'));
         inventoryarea.id = 'live-inventory';
 
+        let buttons = {};
+        let counts = undefined;
         if (submenu == 'Items') {
             let tablearea = inventoryarea.appendChild(document.createElement('div'));
 
@@ -1192,7 +1486,7 @@ version 0.0.16.20210617.001900
             let headerrow = tableheader.appendChild(document.createElement('tr'));
 
             let tablebody = sortabletable.appendChild(document.createElement('tbody'));
-            setKeyTableBody(capsule.keys, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]],capsuleid);
+            counts = setKeyTableBody(capsule.keys, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]],capsuleid);
 
             ['Count','Portal','Distance'].map(function(column) {
                 let header = headerrow.appendChild(document.createElement('th'));
@@ -1207,6 +1501,17 @@ version 0.0.16.20210617.001900
                     setKeyTableBody(capsule.keys, tablebody, self.lastsortcolumn[submenu], self.lastsortdirection[submenu][self.lastsortcolumn[submenu]],capsuleid);
                 },false);
             });
+            buttons['Zoom all'] = function() {
+                self.zoomallkeys(capsule.keys);
+            };
+            if ('bookmarks' in window.plugin) {
+                buttons['Draw bookmarks'] = function() {
+                        let bookmarkfolder = capsule.type + (capsulename ? ' (' + capsuleid + '): ' + capsulename : ': ' + capsuleid);
+                        if (confirm('This will draw a bookmark for every key (' + capsule.keys.length + ') in folder:\n' + bookmarkfolder + '\n\nAre you sure you want to continue?')) {
+                            self.drawbookmarks(capsule.keys,bookmarkfolder);
+                        }
+                    };
+            }
         }
 
         let dialogheight = 140 + 17 * (submenu == 'Keys' ? capsule.keys.length : capsule.items.length);
@@ -1214,11 +1519,11 @@ version 0.0.16.20210617.001900
 
         window.dialog({
             html: container,
-            title: self.title + ' - ' + capsule.type + (capsulename ? ' (' + capsuleid + '): ' + capsulename : ': ' + capsuleid),
+            title: self.title + ' - ' + capsule.type + (capsulename ? ' (' + capsuleid + '): ' + capsulename : ': ' + capsuleid) + (counts ? ' (' + counts.countkeys + ' keys / ' + counts.countportals + ' portals)' : ''),
             id: capsuleid,
             width: 'auto',
             height: (isSmartphone() ? 'auto' : dialogheight)
-        }).dialog('option', 'buttons', {
+        }).dialog('option', 'buttons', { ...buttons,
             'Rename': function () {
                 let newname = prompt('Enter new capsule name (' + capsuleid + '):',capsulename);
                 if (newname == null || newname == capsulename) return;
@@ -1416,6 +1721,13 @@ version 0.0.16.20210617.001900
     };
 
     self.setup = function() {
+        if ('pluginloaded' in self) {
+            console.log('IITC plugin already loaded: ' + self.title + ' version ' + self.version);
+            return;
+        } else {
+            self.pluginloaded = true;
+        }
+
         self.layerGroup = new L.LayerGroup();
         window.addLayerGroup('Portal keys', self.layerGroup, false);
         createIcons();
